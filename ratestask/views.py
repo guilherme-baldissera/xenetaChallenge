@@ -1,7 +1,6 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from django.db.utils import DataError
 from .queries.database_queries import *
 import datetime
 from .exceptions.exceptions import InvalidDateRangeException, ConvertCurrencyAPIException,\
@@ -27,7 +26,15 @@ def get_average_prices(request):
         else:
             destination = "'{}'".format(destination)
 
-        response_data = get_average_price_by_date(origin, destination, date_from, date_to)
+        pattern_date = "%Y-%m-%d"
+
+        date_from_date_type = datetime.datetime.strptime(date_from, pattern_date)
+        date_to_date_type = datetime.datetime.strptime(date_to, pattern_date)
+
+        valid_date_range(date_from_date_type, date_to_date_type)
+
+        response_data = get_average_price_by_date(origin, destination,
+                                                  date_from_date_type.date(), date_to_date_type.date())
 
         return Response(status=status.HTTP_200_OK, data=response_data)
 
@@ -41,11 +48,15 @@ def get_average_prices(request):
         return Response(status=status.HTTP_400_BAD_REQUEST,
                         data={"ErrorMessage": f"Parameter {ke} was not sent"})
 
-    except DataError as de:
-        print(de)
+    except ValueError as ve:
+        print(ve)
         return Response(status=status.HTTP_400_BAD_REQUEST,
-                        data={"ErrorMessage": "The date sent is not valid, "
-                                              "the expected format is YYYY-MM-DD"})
+                        data={"ErrorMessage": f"The date sent is not valid {ve},"
+                                              f"the expected format is YYYY-MM-DD"})
+
+    except InvalidDateRangeException as idre:
+        return Response(status=status.HTTP_400_BAD_REQUEST,
+                        data={"ErrorMessage": idre.__str__()})
 
     except Exception as e:
         print(type(e))
@@ -127,7 +138,7 @@ def add_prices(request):
 
 def valid_date_range(date_from_date_type, date_to_date_type):
     if date_from_date_type > date_to_date_type:
-        raise InvalidDateRangeException(f"date_from : {date_to_date_type.date()}"
+        raise InvalidDateRangeException(f"date_from : {date_from_date_type.date()}"
                                         f" must be smaller than date_to : {date_to_date_type.date()}")
 
 
